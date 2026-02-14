@@ -37,8 +37,7 @@ impl Interpreter for State {
     fn step(&mut self, keys: &Keys) -> Option<Display> {
         let op = self.memory[self.pc];
 
-        debug!(target: "Interpreter/mod", "PC: {:#06X} | Opcode: {:#06X}", self.pc, op);
-        debug!(target: "Interpreter", "Frequency: {:#06X}", self.freq);
+        debug!(target: "Interpreter/mod", "PC: {:#06X} | Opcode: {:#06X}", self.pc, op)
         if self.pc < 4094 {
             self.pc += 2;
         } else {
