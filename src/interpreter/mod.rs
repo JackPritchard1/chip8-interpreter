@@ -38,7 +38,7 @@ impl Interpreter for State {
         let op = self.memory[self.pc];
 
         debug!(target: "Interpreter/mod", "PC: {:#06X} | Opcode: {:#06X}", self.pc, op);
-
+        debug!(target: "Interpreter", "Frequency: {:#06X}", self.freq);
         if self.pc < 4094 {
             self.pc += 2;
         } else {
