@@ -1,0 +1,9 @@
+[package]
+name = "chip8_interpreter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chip8_base = "0.2"
+log = "0.4.29"
+env_logger = "0.11.9"
