@@ -2,7 +2,6 @@ use std::time::Duration;
 use chip8_base::*;
 use log::{debug, error, log_enabled, info, Level};
 use rand::Rng;
-use termion::event::Key;
 
 
 pub struct State {
@@ -15,6 +14,7 @@ pub struct State {
     delay_timer: u8,
     sound_timer: u8,
     display: Display,
+    keys: Keys,
     freq: f32
 }
 
@@ -29,12 +29,13 @@ impl State {
             sp: 0,
             delay_timer: 0,
             sound_timer: 0,
+            keys: [false; 16],
             display: [[Pixel::Black; 64]; 32],
             freq: f
         }
     }
 
-    fn execute(opcode: (u8, u8)) {
+    fn execute(&mut self, opcode: (u8, u8)) {
         let nib = (opcode.0 & 0b1111_0000, opcode.0 & 0b0000_1111, opcode.1 & 0b1111_0000, opcode.1 & 0b0000_1111);
         let x = nib.1;
         let y = nib.2;
@@ -42,47 +43,52 @@ impl State {
         let kk = nib.2 << 4 | nib.3;
         let nnn = ((nib.1 as u16) << 8 | (nib.2 as u16) << 4 | (nib.3 as u16));
         match nib {
-            (0, 0, 0, 0) => nop(),
-            (0, 0, 0xE, 0x0) => clear(),
-            (0, 0, 0xE, 0xE) => ret(),
-            (0, _, _, _) => sys(nnn),
-            (1, _, _, _) => jp(nnn),
-            (2, _, _, _) => call(nnn),
-            (3, _, _, _) => se(x, kk),
-            (4, _, _, _) => sne(x, kk),
-            (5, _, _, 0) => se_reg(x, y),
-            (6, _, _, _) => ld(x, kk),
-            (7, _, _, _) => add(x, kk),
-            (8, _, _, 0) => ld(x, y),
-            (8, _, _, 1) => or(x, y),
-            (8, _, _, 2) => and(x, y),
-            (8, _, _, 3) => xor(x, y),
-            (8, _, _, 4) => add_carry(x, y),
-            (8, _, _, 5) => sub(x, y),
-            (8, _, _, 6) => shr(x, y),
-            (8, _, _, 7) => subn(x, y),
-            (8, _, _, 0xE) => shl(x, y),
-            (9, _, _, 0) => sne_reg(x, y),
-            (0xA, _, _, _) => ld(nnn),
-            (0xB, _, _, _) => jp_v0(nnn),
-            (0xC, _, _, _) => rnd(x, kk),
-            (0xD, _, _, _) => drw(x, y, n),
-            (0xE, _, 9, 0xE) => skp(x),
-            (0xE, _, 0xA, 1) => sknp(x),
-            (0xF, _, 0, 7) => ld_Vx_DT(x),
-            (0xF, _, 0, 0xA) => ld_K(x),
-            (0xF, _, 1, 5) => ld_DT_Vx(x),
-            (0xF, _, 1, 8) => ld_ST_Vx(x),
-            (0xF, _, 1, 0xE) => add_I(x),
-            (0xF, _, 2, 9) => ld_F(x),
-            (0xF, _, 3, 3) => ld_B(x),
-            (0xF, _, 5, 5) => ld_I_Vx(x),
-            (0xF, _, 6, 5) => ld_Vx_I(x),
+            (0, 0, 0, 0) => self.nop(),
+            (0, 0, 0xE, 0x0) => self.clear(),
+            (0, 0, 0xE, 0xE) => self.ret(),
+            (0, _, _, _) => self.sys(nnn),
+            (1, _, _, _) => self.jp(nnn),
+            (2, _, _, _) => self.call(nnn),
+            (3, _, _, _) => self.se(x, kk),
+            (4, _, _, _) => self.sne(x, kk),
+            (5, _, _, 0) => self.se_reg(x, y),
+            (6, _, _, _) => self.ld(x, kk),
+            (7, _, _, _) => self.add(x, kk),
+            (8, _, _, 0) => self.ld(x, y),
+            (8, _, _, 1) => self.or(x, y),
+            (8, _, _, 2) => self.and(x, y),
+            (8, _, _, 3) => self.xor(x, y),
+            (8, _, _, 4) => self.add_carry(x, y),
+            (8, _, _, 5) => self.sub(x, y),
+            (8, _, _, 6) => self.shr(x, y),
+            (8, _, _, 7) => self.subn(x, y),
+            (8, _, _, 0xE) => self.shl(x, y),
+            (9, _, _, 0) => self.sne_reg(x, y),
+            (0xA, _, _, _) => self.ld_I(nnn),
+            (0xB, _, _, _) => self.jp_v0(nnn),
+            (0xC, _, _, _) => self.rnd(x, kk),
+            (0xD, _, _, _) => self.drw(x, y, n),
+            (0xE, _, 9, 0xE) => self.skp(x),
+            (0xE, _, 0xA, 1) => self.sknp(x),
+            (0xF, _, 0, 7) => self.ld_Vx_DT(x),
+            (0xF, _, 0, 0xA) => self.ld_K(x),
+            (0xF, _, 1, 5) => self.ld_DT_Vx(x),
+            (0xF, _, 1, 8) => self.ld_ST_Vx(x),
+            (0xF, _, 1, 0xE) => self.add_I(x),
+            (0xF, _, 2, 9) => self.ld_F(x),
+            (0xF, _, 3, 3) => self.ld_B(x),
+            (0xF, _, 5, 5) => self.ld_I_Vx(x),
+            (0xF, _, 6, 5) => self.ld_Vx_I(x),
+            _ => panic!("Invalid opcode")
         }
     }
 
-    fn nop(self) -> Self {
-        self
+    fn nop(&mut self)  {
+
+    }
+
+    fn sys(&mut self, nnn: u16) {
+        self.pc = nnn;
     }
 
     fn clear(&mut self) {
@@ -174,7 +180,7 @@ impl State {
         }
     }
 
-    fn ld(&mut self, nnn: u16) {
+    fn ld_I(&mut self, nnn: u16) {
         self.index = nnn;
     }
 
@@ -210,21 +216,21 @@ impl State {
     }
 
     fn skp(&mut self, x: u8) {
-        if Keys[x as usize] { self.pc += 2;}
+        if self.keys[x as usize] { self.pc += 2;}
     }
 
     fn sknp(&mut self, x: u8) {
-        if !Keys[x as usize] { self.pc += 2;}
+        if !self.keys[x as usize] { self.pc += 2;}
     }
 
     fn ld_Vx_DT(&mut self, x: u8) {
-        registers[x as usize] = self.delay_timer;
+        self.registers[x as usize] = self.delay_timer;
     }
 
     fn ld_K(&mut self, x: u8) {
-        while Keys == [false; 16] {
+        while self.keys == [false; 16] {
             for key in 0..16 {
-                if Keys[key] { self.registers[x as usize] = key; }
+                if self.keys[key] { self.registers[x as usize] = (key as u8); }
             }
         }
     }
@@ -242,7 +248,7 @@ impl State {
     }
 
     fn ld_F(&mut self, x: u8) {
-        
+
     }
 
     fn ld_B(&mut self, x: u8) {
@@ -260,6 +266,16 @@ impl State {
     fn ld_Vx_I(&mut self, x: u8) {
         for i in 0..x {
             self.registers[i as usize] = self.memory[self.index as usize + i as usize];
+        }
+    }
+
+    fn initialise_sprites(&mut self) {
+        let initial = 0x50;
+        for i in 0..16{
+            let sprite = Sprite::new(i);
+            for j in 0..5 {
+                self.memory[(initial + (i * 5) + j) as usize] = sprite.hex[j as usize];
+            }
         }
     }
 
@@ -283,5 +299,35 @@ impl Interpreter for State {
     }
     fn buzzer_active(&self) -> bool {
         self.sound_timer != 0
+    }
+}
+
+pub struct Sprite {
+    key : u8,
+    hex : [u8; 5]
+}
+
+impl Sprite {
+    pub fn new(key : u8) -> Self {
+        let hex = match key {
+            0 => [0xF0, 0x90, 0x90, 0x90, 0xF0],
+            1 => [0x20, 0x60, 0x20, 0x20, 0x70],
+            2 => [0xF0, 0x10, 0xF0, 0x80, 0xF0],
+            3 => [0xF0, 0x10, 0xF0, 0x10, 0xF0],
+            4 => [0x90, 0x90, 0xF0, 0x10, 0x10],
+            5 => [0xF0, 0x80, 0xF0, 0x10, 0xF0],
+            6 => [0xF0, 0x80, 0xF0, 0x90, 0xF0],
+            7 => [0xF0, 0x10, 0x20, 0x40, 0x40],
+            8 => [0xF0, 0x90, 0xF0, 0x90, 0xF0],
+            9 => [0xF0, 0x90, 0xF0, 0x10, 0xF0],
+            0xA => [0xF0, 0x90, 0xF0, 0x90, 0x90],
+            0xB => [0xE0, 0x90, 0xE0, 0x90, 0xE0],
+            0xC => [0xF0, 0x80, 0x80, 0x80, 0xF0],
+            0xD => [0xE0, 0x90, 0x90, 0x90, 0xE0],
+            0xE => [0xF0, 0x80, 0xF0, 0x80, 0xF0],
+            0xF => [0xF0, 0x80, 0xF0, 0x80, 0x80],
+            _ => panic!("Invalid sprite key")
+        };
+        Sprite { key, hex }
     }
 }
