@@ -186,6 +186,24 @@ impl State {
     }
 
     fn drw(&mut self, x: u8, y: u8, n: u8) {
+        let x_pos = self.registers[x as usize] % 64;
+        let y_pos = self.registers[y as usize] % 32;
+        self.registers[0xF] = 0;
+        for i in 0..n {
+            if y_pos + i >= 32 { break; }
+            for b in 0..8 {
+                if x_pos + b >= 64 { break; }
+                let pixel = self.display[(y_pos + i) as usize][(x_pos + b) as usize];
+                self.display[(y_pos + i) as usize][(x_pos + b) as usize] = {
+                        if pixel == Pixel::Black {
+                            Pixel::White
+                        } else {
+                            self.registers[0xF] = 1;
+                            Pixel::Black
+                        }
+                }
+            }
+        }
 
     }
 
