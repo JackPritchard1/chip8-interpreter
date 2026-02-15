@@ -1,6 +1,8 @@
 use std::time::Duration;
 use chip8_base::*;
 use log::{debug, error, log_enabled, info, Level};
+use rand::Rng;
+use termion::event::Key;
 
 
 pub struct State {
@@ -208,55 +210,66 @@ impl State {
     }
 
     fn skp(&mut self, x: u8) {
-
+        if Keys[x as usize] { self.pc += 2;}
     }
 
     fn sknp(&mut self, x: u8) {
-
+        if !Keys[x as usize] { self.pc += 2;}
     }
 
     fn ld_Vx_DT(&mut self, x: u8) {
-
+        registers[x as usize] = self.delay_timer;
     }
 
     fn ld_K(&mut self, x: u8) {
-
+        while Keys == [false; 16] {
+            for key in 0..16 {
+                if Keys[key] { self.registers[x as usize] = key; }
+            }
+        }
     }
 
     fn ld_DT_Vx(&mut self, x: u8) {
-
+        self.delay_timer = self.registers[x as usize];
     }
 
     fn ld_ST_Vx(&mut self, x: u8) {
-
+        self.sound_timer = self.registers[x as usize];
     }
 
     fn add_I(&mut self, x: u8) {
-
+        self.index += self.registers[x as usize] as u16;
     }
 
     fn ld_F(&mut self, x: u8) {
-
+        
     }
 
     fn ld_B(&mut self, x: u8) {
-
+        self.memory[self.index as usize] = self.registers[x as usize] / 100;
+        self.memory[(self.index + 1) as usize] = (self.registers[x as usize] / 10) % 10;
+        self.memory[(self.index + 2) as usize] = self.registers[x as usize] % 10;
     }
 
     fn ld_I_Vx(&mut self, x: u8) {
+        for i in 0..x {
+            self.memory[self.index as usize + i as usize] = self.registers[i as usize];
+        }
     }
 
     fn ld_Vx_I(&mut self, x: u8) {
-
+        for i in 0..x {
+            self.registers[i as usize] = self.memory[self.index as usize + i as usize];
+        }
     }
 
 }
 
 impl Interpreter for State {
     fn step(&mut self, keys: &Keys) -> Option<Display> {
-        let op = self.memory[self.pc];
+        let op: (u8, u8) = (self.memory[self.pc as usize], self.memory[(self.pc + 1) as usize]);
 
-        debug!(target: "Interpreter/mod", "PC: {:#06X} | Opcode: {:#06X}", self.pc, op)
+        info!(target: "Interpreter/mod", "PC: {:#06X} | Opcode: {:#06X}{:#06X}", self.pc, op.0, op.1);
         if self.pc < 4094 {
             self.pc += 2;
         } else {
@@ -272,51 +285,3 @@ impl Interpreter for State {
         self.sound_timer != 0
     }
 }
-
-fn execute(opcode: (u8, u8)) {
-    let nib = (opcode.0 & 0b1111_0000, opcode.0 & 0b0000_1111, opcode.1 & 0b1111_0000, opcode.1 & 0b0000_1111);
-    let x = nib.1;
-    let y = nib.2;
-    let n = nib.3;
-    let kk = nib.2 << 4 | nib.3;
-    let nnn = ((nib.1 as u16) << 8 | (nib.2 as u16) << 4 | (nib.3 as u16));
-    match nib {
-        (0, 0, 0, 0) => nop(),
-        (0, 0, 0xE, 0x0) => clear(),
-        (0, 0, 0xE, 0xE) => ret(),
-        (0, _, _, _) => sys(nnn),
-        (1, _, _, _) => jp(nnn),
-        (2, _, _, _) => call(nnn),
-        (3, _, _, _) => se(x, kk),
-        (4, _, _, _) => sne(x, kk),
-        (5, _, _, 0) => se(x, y),
-        (6, _, _, _) => ld(x, kk),
-        (7, _, _, _) => add(x, kk),
-        (8, _, _, 0) => ld(x, y),
-        (8, _, _, 1) => or(x, y),
-        (8, _, _, 2) => and(x, y),
-        (8, _, _, 3) => xor(x, y),
-        (8, _, _, 4) => add(x, y),
-        (8, _, _, 5) => sub(x, y),
-        (8, _, _, 6) => shr(x, y),
-        (8, _, _, 7) => subn(x, y),
-        (8, _, _, 0xE) => shl(x, y),
-        (9, _, _, 0) => sne_reg(x, y),
-        (0xA, _, _, _) => ld(nnn),
-        (0xB, _, _, _) => jp_v0(nnn),
-        (0xC, _, _, _) => rnd(x, kk),
-        (0xD, _, _, _) => drw(x, y, n),
-        (0xE, _, 9, 0xE) => skp(x),
-        (0xE, _, 0xA, 1) => sknp(x),
-        (0xF, _, 0, 7) => ld_Vx_DT(x),
-        (0xF, _, 0, 0xA) => ld_K(x),
-        (0xF, _, 1, 5) => ld_DT_Vx(x),
-        (0xF, _, 1, 8) => ld_ST_Vx(x),
-        (0xF, _, 1, 0xE) => add_I(x),
-        (0xF, _, 2, 9) => ld_F(x),
-        (0xF, _, 3, 3) => ld_B(x),
-        (0xF, _, 5, 5) => ld_I_Vx(x),
-        (0xF, _, 6, 5) => ld_Vx_I(x),
-    }
-}
-
